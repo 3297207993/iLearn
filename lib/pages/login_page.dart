@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../widgets/webview_container.dart';
 import 'success_page.dart';
@@ -12,9 +14,9 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isLoggedIn = false;
-  List<String> _cookies = [];
+  List<Cookie> _cookies = [];
 
-  void _handleLoginSuccess(bool success, List<String> cookies) {
+  void _handleLoginSuccess(bool success, List<Cookie> cookies) {
     if (success) {
       setState(() {
         _isLoggedIn = true;

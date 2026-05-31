@@ -1,10 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_cookie_manager_plus/webview_cookie_manager_plus.dart';
 import '../constants/app_constants.dart';
 
 /// WebView容器组件
 class WebViewContainer extends StatefulWidget {
-  final Function(bool, List<String>) onLoginSuccess;
+  final Function(bool, List<Cookie>) onLoginSuccess;
 
   const WebViewContainer({
     super.key,
@@ -17,6 +20,7 @@ class WebViewContainer extends StatefulWidget {
 
 class _WebViewContainerState extends State<WebViewContainer> {
   late WebViewController _controller;
+  final WebviewCookieManager _cookieManager = WebviewCookieManager();
 
   @override
   void initState() {
@@ -27,20 +31,15 @@ class _WebViewContainerState extends State<WebViewContainer> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onUrlChange: (urlChange) async {
+          onUrlChange: (UrlChange) async {
             // 检查URL是否包含目标域名
-            if (urlChange.url != null && 
-                urlChange.url!.contains(AppConstants.successDomain)) {
+            if (UrlChange.url!.contains(AppConstants.successDomain)) {
               try {
-                // 通过JavaScript获取所有Cookie
-                final cookies = await _controller.runJavaScriptReturningResult('document.cookie') as String;
-                print('获取到的Cookies字符串: $cookies');
-                
-                // 解析Cookie字符串为列表
-                final cookieList = cookies.split(';').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                // 使用CookieManager获取所有Cookie（包括HttpOnly）
+                final cookies = await _cookieManager.getCookies(UrlChange.url!);
                 
                 // 通知父组件登录成功并传递Cookie
-                widget.onLoginSuccess(true, cookieList);
+                widget.onLoginSuccess(true, cookies);
               } catch (e) {
                 print('获取Cookie失败: $e');
                 // 即使获取Cookie失败也通知登录成功

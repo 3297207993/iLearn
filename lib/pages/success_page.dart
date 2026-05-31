@@ -1,9 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../constants/app_constants.dart';
 
 /// 登录成功页面
 class SuccessPage extends StatelessWidget {
-  final List<String> cookies;
+  final List<Cookie> cookies;
   
   const SuccessPage({super.key, required this.cookies});
 
