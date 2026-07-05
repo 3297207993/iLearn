@@ -21,25 +21,40 @@ class WebViewContainer extends StatefulWidget {
 class _WebViewContainerState extends State<WebViewContainer> {
   late WebViewController _controller;
   final WebviewCookieManager _cookieManager = WebviewCookieManager();
+  bool _hasTriggeredLogin = false;
 
   @override
   void initState() {
     super.initState();
-    
-    // 初始化 WebView 控制器
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (url) async {
-            if (url.contains(AppConstants.mainDomain)) {
-              await Future.delayed(const Duration(seconds: 2));
+            if (url.contains(AppConstants.mainDomain) && !_hasTriggeredLogin) {
+              _hasTriggeredLogin = true;
+              await _waitForCookiesReady();
               widget.onLoginSuccess(true);
             }
           },
         ),
       )
       ..loadRequest(Uri.parse(AppConstants.loginUrl));
+  }
+
+  Future<void> _waitForCookiesReady() async {
+    final targetUrl = '${AppConstants.httpsPrefix}${AppConstants.mainDomain}';
+    const maxAttempts = 20;
+    const interval = Duration(milliseconds: 500);
+
+    for (int i = 0; i < maxAttempts; i++) {
+      final cookies = await _cookieManager.getCookies(targetUrl);
+      if (cookies.length > 1) {
+        return;
+      }
+      await Future.delayed(interval);
+    }
   }
 
   @override
