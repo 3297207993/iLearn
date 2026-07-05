@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import '../widgets/webview_container.dart';
-import 'success_page.dart';
+import 'main_page.dart';
 
 /// 登录主页
 class LoginPage extends StatefulWidget {
@@ -26,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoggedIn) {
-      return SuccessPage();
+      return MainPage();
     } else {
       return WebViewContainer(onLoginSuccess: _handleLoginSuccess);
     }

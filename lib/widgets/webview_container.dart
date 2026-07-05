@@ -50,7 +50,9 @@ class _WebViewContainerState extends State<WebViewContainer> {
 
     for (int i = 0; i < maxAttempts; i++) {
       final cookies = await _cookieManager.getCookies(targetUrl);
-      if (cookies.length > 1) {
+      print(cookies);
+      if (cookies.length >= 2) {
+        await Future.delayed(Duration(milliseconds: 5000));
         return;
       }
       await Future.delayed(interval);

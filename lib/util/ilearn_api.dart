@@ -7,13 +7,15 @@ import 'package:ilearn/constants/app_constants.dart';
 import 'package:webview_cookie_manager_plus/webview_cookie_manager_plus.dart';
 
 class IlearnApi {
-  var _dio;
+  late final Dio _dio;
   final _cookieManager = WebviewCookieManager();
+  late final Future<void> _ready;
+
   IlearnApi() {
-    _dioInit();
+    _ready = _setup();
   }
 
-  void _dioInit() async {
+  Future<void> _setup() async {
     _dio = Dio(
       BaseOptions(
         headers: {
@@ -32,12 +34,12 @@ class IlearnApi {
       ),
     );
     var cookieJar = CookieJar();
-    String mainUrl = AppConstants.httpsPrefix+ AppConstants.mainDomain;
+    String mainUrl = AppConstants.httpsPrefix + AppConstants.mainDomain;
     await cookieJar.saveFromResponse(
       Uri.parse(mainUrl),
       await _cookieManager.getCookies(mainUrl),
     );
-    String ilearnUrl = AppConstants.httpsPrefix+ AppConstants.ilearnDomain;
+    String ilearnUrl = AppConstants.httpsPrefix + AppConstants.ilearnDomain;
     await cookieJar.saveFromResponse(
       Uri.parse(ilearnUrl),
       await _cookieManager.getCookies(ilearnUrl),
@@ -51,24 +53,22 @@ class IlearnApi {
         error: true,
       ),
     );
-    _dio
-      // ..get("https://ilearn.jlu.edu.cn/iplat/ssoservice")
-      ..get("https://ilearntec.jlu.edu.cn/courselibrary-web/index?isLocation=1");
-    print(await termList());
   }
 
   Future<Map<String, dynamic>> classList(int termYear, int term) async {
+    await _ready;
     var res = await _dio.get<Map<String, dynamic>>(
       AppConstants.httpsPrefix + AppConstants.mainDomain + '/studycenter/platform/classroom/myClassroom',
-      queryParameters: {termYear: termYear, term: term},
+      queryParameters: {'termYear': termYear, 'term': term},
     );
-    return res.data;
+    return res.data!;
   }
 
   Future<Map<String, dynamic>> termList() async {
+    await _ready;
     var res = await _dio.get<Map<String, dynamic>>(
       AppConstants.httpsPrefix + AppConstants.mainDomain + '/studycenter/platform/common/termList',
     );
-    return res.data;
+    return res.data!;
   }
 }
