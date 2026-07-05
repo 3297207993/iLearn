@@ -171,7 +171,7 @@ class _MainPageState extends State<MainPage> {
               course['cover']?.toString().trim() ?? '',
               fit: BoxFit.cover,
               width: double.infinity,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 color: Colors.grey[200],
                 child: const Icon(Icons.book, size: 48, color: Colors.grey),
               ),

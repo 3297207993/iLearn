@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import '../widgets/webview_container.dart';
 import 'main_page.dart';
