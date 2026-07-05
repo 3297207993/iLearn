@@ -143,4 +143,84 @@ class IlearnApi {
     );
     return res.data!;
   }
+
+  /// 获取直播与录播列表
+  ///
+  /// [teachClassId] 教学班ID
+  /// [termId] 学期ID
+  ///
+  /// 返回值结构：
+  /// ```
+  /// {
+  ///   "code": "1000",
+  ///   "status": "1",
+  ///   "message": "操作成功",
+  ///   "data": {
+  ///     "dataList": [
+  ///       {
+  ///         "id": 录播记录ID,
+  ///         "resourceId": 资源ID,
+  ///         "liveRecordName": 录播名称,
+  ///         "buildingName": 教学楼名称,
+  ///         "currentWeek": 当前周次,
+  ///         "currentDay": 当前星期,
+  ///         "currentDate": 当前日期,
+  ///         "roomName": 教室名称,
+  ///         "roomId": 教室ID,
+  ///         "isAllowDownload": 是否允许下载,
+  ///         "isNowPlay": 是否正在播放,
+  ///         "teacherName": 教师姓名,
+  ///         "courseId": 课程ID,
+  ///         "courseName": 课程名称,
+  ///         "classIds": 班级ID,
+  ///         "classNames": 班级名称,
+  ///         "section": 节次,
+  ///         "timeRange": 时间范围,
+  ///         "isOpen": 是否开放,
+  ///         "isAction": 是否进行中,
+  ///         "liveStatus": 直播状态（1=未开始, 3=已结束）,
+  ///         "schImgUrl": 课程封面URL,
+  ///         "videoTimes": 视频时长（秒）,
+  ///         "videoSubTime": 视频子时长,
+  ///         "classType": 课堂类型,
+  ///         "videoPath": 视频路径,
+  ///         "videoClassMap": [
+  ///           {
+  ///             "videoClassId": 视频分类ID,
+  ///             "videoName": 视频分类名称（教师机位/HDMI）
+  ///           }
+  ///         ],
+  ///         "resourceFileType": 资源文件类型,
+  ///         "livePath": 直播路径,
+  ///         "roomType": 教室类型,
+  ///         "scheduleTimeStart": 计划开始时间,
+  ///         "scheduleTimeEnd": 计划结束时间
+  ///       }
+  ///     ]
+  ///   }
+  /// }
+  /// ```
+  /// 响应中的videoClassMap通常是两个元素，一个元素是教师机位，另一个元素是HDMI（教室视频和PPT视频）
+  Future<Map<String, dynamic>> liveAndRecordList(
+    String teachClassId,
+    String termId,
+  ) async {
+    await _ready;
+    var res = await _dio.get<Map<String, dynamic>>(
+      AppConstants.httpsPrefix + AppConstants.mainDomain + '/coursecenter/liveAndRecord/getLiveAndRecordInfoList',
+      queryParameters: {
+        'memberId': '',
+        'roomType': '0',
+        'identity': '2',
+        'liveStatus': '0',
+        'submitStatus': '0',
+        'weekNum': '',
+        'dayNum': '',
+        'timeRange': '',
+        'teachClassId': teachClassId,
+        'termId': termId,
+      },
+    );
+    return res.data!;
+  }
 }

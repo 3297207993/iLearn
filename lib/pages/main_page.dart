@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ilearn/util/ilearn_api.dart';
 import '../constants/app_constants.dart';
+import 'video_list_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -161,7 +162,9 @@ class _MainPageState extends State<MainPage> {
         : statusName == '已结束'
             ? Colors.grey
             : Colors.orange;
-    return Card(
+    return GestureDetector(
+      onTap: () => _navigateToVideoList(course),
+      child: Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,6 +228,23 @@ class _MainPageState extends State<MainPage> {
             ),
           ),
         ],
+      ),
+    ),
+    );
+  }
+
+  void _navigateToVideoList(Map<String, dynamic> course) {
+    final teachClassId = course['id']?.toString() ?? '';
+    final termId = course['termId']?.toString() ?? '';
+    final courseName = course['courseName'] ?? '';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoListPage(
+          teachClassId: teachClassId,
+          termId: termId,
+          courseName: courseName,
+        ),
       ),
     );
   }
