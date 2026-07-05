@@ -14,5 +14,5 @@ class AppConstants {
   static const String httpsPrefix = 'https://';
   
   // 应用标题
-  static const String appTitle = 'iLearn';
+  static const String appTitle = '学在吉大';
 }
