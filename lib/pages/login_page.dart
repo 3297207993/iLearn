@@ -14,27 +14,19 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isLoggedIn = false;
-  List<Cookie> _cookies = [];
 
-  void _handleLoginSuccess(bool success, List<Cookie> cookies) {
+  void _handleLoginSuccess(bool success) {
     if (success) {
       setState(() {
         _isLoggedIn = true;
-        _cookies = cookies;
       });
-      
-      // 打印Cookie信息用于调试
-      print('登录成功，获取到 ${cookies.length} 个Cookie');
-      for (var cookie in cookies) {
-        print('Cookie: $cookie');
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoggedIn) {
-      return SuccessPage(cookies: _cookies);
+      return SuccessPage();
     } else {
       return WebViewContainer(onLoginSuccess: _handleLoginSuccess);
     }

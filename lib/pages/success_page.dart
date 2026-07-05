@@ -1,13 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ilearn/util/ilearn_api.dart';
 import '../constants/app_constants.dart';
 
 /// 登录成功页面
 class SuccessPage extends StatelessWidget {
-  final List<Cookie> cookies;
-  
-  const SuccessPage({super.key, required this.cookies});
+  IlearnApi ?_api;
+  SuccessPage({super.key}){
+    _api = IlearnApi();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,13 +43,6 @@ class SuccessPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
-              '获取到 ${cookies.length} 个Cookie',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
           ],
         ),
       ),

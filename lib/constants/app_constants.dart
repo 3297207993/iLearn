@@ -5,7 +5,13 @@ class AppConstants {
       'https://cas.jlu.edu.cn/tpass/login?service=https%3A%2F%2Fjwcidentity.jlu.edu.cn%2Fiplat-pass-jlu%2FthirdLogin%2Fjlu%2Flogin';
   
   // 登录成功的目标域名
-  static const String successDomain = 'ilearntec.jlu.edu.cn';
+  static const String mainDomain = 'ilearntec.jlu.edu.cn';
+
+  static const String ilearnDomain = 'ilearn.jlu.edu.cn';
+
+  static const String resourceDomain = 'ilearnres.jlu.edu.cn';
+
+  static const String httpsPrefix = 'https://';
   
   // 应用标题
   static const String appTitle = 'iLearn';
