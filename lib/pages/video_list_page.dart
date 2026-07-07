@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ilearn/util/ilearn_api.dart';
+import 'video_player_page.dart';
 
 class VideoListPage extends StatefulWidget {
   final String teachClassId;
@@ -253,8 +254,22 @@ class _VideoListPageState extends State<VideoListPage> {
   }
 
   void _onWatchVideo(Map<String, dynamic> video) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('视频播放页面开发中，敬请期待')),
+    final resourceId = video['resourceId']?.toString() ?? '';
+    final liveRecordName = video['liveRecordName']?.toString() ?? '';
+    if (resourceId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法获取资源信息')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoPlayerPage(
+          resourceId: resourceId,
+          resourceName: liveRecordName,
+        ),
+      ),
     );
   }
 }

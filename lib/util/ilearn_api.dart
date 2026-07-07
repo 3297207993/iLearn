@@ -223,4 +223,61 @@ class IlearnApi {
     );
     return res.data!;
   }
+
+  /// 获取录播课视频详情
+  ///
+  /// [resourceId] 资源ID
+  ///
+  /// 返回值结构：
+  /// ```
+  /// {
+  ///   "status": "1",
+  ///   "message": "",
+  ///   "success": true,
+  ///   "data": {
+  ///     "detectKnowledgeStatus": 知识点检测状态,
+  ///     "liveRecordId": 录播记录ID,
+  ///     "enableWater": 是否启用水印,
+  ///     "teacherList": ["教师姓名"],
+  ///     "classNames": 班级名称,
+  ///     "videoList": [
+  ///       {
+  ///         "id": 视频ID,
+  ///         "videoCode": 视频编号,
+  ///         "videoName": 视频名称（教师机位/HDMI）,
+  ///         "videoPath": 视频播放地址,
+  ///         "videoSize": 视频文件大小
+  ///       }
+  ///     ],
+  ///     "transPhaseStatus": 转写阶段状态,
+  ///     "company": 公司标识,
+  ///     "courseId": 课程ID,
+  ///     "videoCutStatus": 视频裁剪状态,
+  ///     "scheduleId": 排课ID,
+  ///     "resourceCover": 资源封面图URL,
+  ///     "phaseUrl": 字幕文件URL,
+  ///     "teacherName": 教师姓名,
+  ///     "teacherIds": 教师ID,
+  ///     "resourceName": 资源名称,
+  ///     "isPublish": 是否发布,
+  ///     "parentId": 父级ID,
+  ///     "roomName": 教室名称,
+  ///     "audioPath": 音频播放地址,
+  ///     "commentStatus": 评论状态,
+  ///     "buildingName": 教学楼名称,
+  ///     "createId": 创建者ID,
+  ///     "classType": 课堂类型,
+  ///     "silenceList": [],
+  ///     "resourceType": 资源类型
+  ///   }
+  /// }
+  /// ```
+  Future<Map<String, dynamic>> videoClassInfo(String resourceId) async {
+    await _ready;
+    var res = await _dio.get<Map<String, dynamic>>(
+      AppConstants.httpsPrefix + AppConstants.resourceDomain + '/resource-center/videoclass/videoClassInfo',
+      queryParameters: {'resourceId': resourceId},
+    );
+    return res.data!;
+  }
 }
