@@ -5,8 +5,8 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:flutter/foundation.dart';
 import 'package:ilearn/constants/app_constants.dart';
+import 'package:ilearn/util/app_log.dart';
 
 class IlearnApi {
   late final Dio _dio;
@@ -83,11 +83,11 @@ class IlearnApi {
     // 1. 跟随跳板页，解析出用于登录 iLearn CAS 的转发凭据
     final jwcResp = await _requestWithRedirects(authDio, jwcRelayUrl);
     final jwcHtml = jwcResp.data ?? '';
-    debugPrint('SSO: relay status=${jwcResp.statusCode} html=${jwcHtml.length}');
+    log.i('SSO: relay status=${jwcResp.statusCode} html=${jwcHtml.length}');
     final username = _extractInputValue(jwcHtml, 'id', 'username');
     final password = _extractInputValue(jwcHtml, 'id', 'password');
     if (username == null || password == null) {
-      debugPrint('SSO: relay credentials not found');
+      log.w('SSO: relay credentials not found');
       return false;
     }
 
@@ -122,7 +122,7 @@ class IlearnApi {
 
     final ticket = loginJson['ticket'] as String?;
     if (ticket == null || ticket.isEmpty) return false;
-    debugPrint('SSO: got ticket=$ticket');
+    log.i('SSO: got ticket=$ticket');
 
     // 4. 用 ticket 走 SSO（与参考实现一致，其返回结果被忽略，仅用于触发会话）
     await _requestWithRedirects(
@@ -138,12 +138,12 @@ class IlearnApi {
       authDio,
       '${AppConstants.ilearntec}/coursecenter/main/index',
     );
-    debugPrint('SSO: homepage warmup status=${homeResp.statusCode}');
+    log.i('SSO: homepage warmup status=${homeResp.statusCode}');
 
     final cookies = await _cookieJar.loadForRequest(
       Uri.parse(AppConstants.ilearntecService),
     );
-    debugPrint('SSO: collected ${cookies.length} cookies for ilearntec: '
+    log.i('SSO: collected ${cookies.length} cookies for ilearntec: '
         '${cookies.map((c) => c.name).join(',')}');
 
     return true;

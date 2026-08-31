@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../util/app_log.dart';
 import '../util/ilearn_api.dart';
 import '../widgets/webview_container.dart';
 import 'main_page.dart';
@@ -34,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       final ok = await api.completeSsoLogin(relayUrl);
       if (!mounted) return;
       if (!ok) {
-        debugPrint('SSO: completeSsoLogin returned false');
+        log.w('SSO: completeSsoLogin returned false');
         setState(() {
           _isLoggingIn = false;
           _error = '登录失败，请重试';
@@ -47,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
         _api = api;
       });
     } catch (e, s) {
-      debugPrint('SSO: completeSsoLogin error: $e\n$s');
+      log.e('SSO: completeSsoLogin error: $e\n$s');
       if (!mounted) return;
       setState(() {
         _isLoggingIn = false;
