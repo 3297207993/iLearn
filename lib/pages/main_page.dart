@@ -4,14 +4,16 @@ import '../constants/app_constants.dart';
 import 'video_list_page.dart';
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  final IlearnApi api;
+
+  const MainPage({super.key, required this.api});
 
   @override
   State<MainPage> createState() => _MainPageState();
 }
 
 class _MainPageState extends State<MainPage> {
-  final IlearnApi _api = IlearnApi();
+  late final IlearnApi _api = widget.api;
   List<Map<String, dynamic>> _terms = [];
   String? _selectedTermId;
   Map<String, dynamic>? _selectedTerm;

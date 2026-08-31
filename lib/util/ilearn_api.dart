@@ -1,19 +1,29 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ilearn/constants/app_constants.dart';
-import 'package:webview_cookie_manager_plus/webview_cookie_manager_plus.dart';
 
 class IlearnApi {
   late final Dio _dio;
-  final _cookieManager = WebviewCookieManager();
-  late final Future<void> _ready;
+  final CookieJar _cookieJar = CookieJar();
 
-  IlearnApi() {
-    _ready = _setup();
+  /// 与参考实现一致：这些教育网域名使用不受系统信任的证书，需要跳过 TLS 证书校验。
+  static IOHttpClientAdapter _insecureAdapter() {
+    return IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+        client.badCertificateCallback = (_, _, _) => true;
+        return client;
+      },
+    );
   }
 
-  Future<void> _setup() async {
+  IlearnApi() {
     _dio = Dio(
       BaseOptions(
         headers: {
@@ -31,18 +41,8 @@ class IlearnApi {
         },
       ),
     );
-    var cookieJar = CookieJar();
-    String mainUrl = AppConstants.httpsPrefix + AppConstants.mainDomain;
-    await cookieJar.saveFromResponse(
-      Uri.parse(mainUrl),
-      await _cookieManager.getCookies(mainUrl),
-    );
-    String ilearnUrl = AppConstants.httpsPrefix + AppConstants.ilearnDomain;
-    await cookieJar.saveFromResponse(
-      Uri.parse(ilearnUrl),
-      await _cookieManager.getCookies(ilearnUrl),
-    );
-    _dio.interceptors.add(CookieManager(cookieJar));
+    _dio.httpClientAdapter = _insecureAdapter();
+    _dio.interceptors.add(CookieManager(_cookieJar));
     _dio.interceptors.add(
       LogInterceptor(
         request: true,
@@ -51,6 +51,160 @@ class IlearnApi {
         error: true,
       ),
     );
+  }
+
+  /// 在浏览器 CAS 登录成功后，接管后续的 iLearn 登录流程。
+  ///
+  /// [jwcRelayUrl] 是浏览器被拦截时准备跳转的跳板页地址（携带 CAS ticket），
+  /// 形如 `https://jwcidentity.jlu.edu.cn/iplat-pass-jlu/thirdLogin/jlu/login?ticket=ST-...`。
+  ///
+  /// 本方法完全使用 Dio（而非浏览器）完成请求，因此能把 HTTP-only 的
+  /// 会话 Cookie（如 `iplat/ssoservice` 下发）一并写入共享的 [_cookieJar]。
+  Future<bool> completeSsoLogin(String jwcRelayUrl) async {
+    final authDio = Dio(
+      BaseOptions(
+        responseType: ResponseType.plain,
+        followRedirects: false,
+        validateStatus: (_) => true,
+        headers: {
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0',
+        },
+      ),
+    );
+    authDio.httpClientAdapter = _insecureAdapter();
+    authDio.interceptors.add(CookieManager(_cookieJar));
+    authDio.interceptors.add(
+      LogInterceptor(request: true, responseBody: false, error: true),
+    );
+
+    // 1. 跟随跳板页，解析出用于登录 iLearn CAS 的转发凭据
+    final jwcResp = await _requestWithRedirects(authDio, jwcRelayUrl);
+    final jwcHtml = jwcResp.data ?? '';
+    debugPrint('SSO: relay status=${jwcResp.statusCode} html=${jwcHtml.length}');
+    final username = _extractInputValue(jwcHtml, 'id', 'username');
+    final password = _extractInputValue(jwcHtml, 'id', 'password');
+    if (username == null || password == null) {
+      debugPrint('SSO: relay credentials not found');
+      return false;
+    }
+
+    // 2. 获取 iLearn CAS 动态字段 lt / execution
+    final ts0 = DateTime.now().millisecondsSinceEpoch;
+    final nonceUrl =
+        '${AppConstants.casServer}/login?'
+        'service=${Uri.encodeComponent(AppConstants.ilearntecService)}'
+        '&get-lt=true&callback=jsonpcallback&n=${ts0 + 1}&_=$ts0';
+    final nonceResp = await _requestWithRedirects(authDio, nonceUrl);
+    final nonceJson = _parseJsonp(nonceResp.data ?? '');
+    final lt = nonceJson['lt'] as String? ?? '';
+    final execution = nonceJson['execution'] as String? ?? '';
+    if (lt.isEmpty || execution.isEmpty) return false;
+
+    // 3. 用转发凭据登录 iLearn CAS，换取 ticket
+    final passwordBase64 = base64Encode(utf8.encode(password));
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final loginUrl =
+        '${AppConstants.casServer}/login?'
+        'service=${Uri.encodeComponent(AppConstants.ilearntecService)}'
+        '&username=${Uri.encodeComponent(username)}'
+        '&password=${Uri.encodeComponent(passwordBase64)}'
+        '&isajax=true&isframe=true&_eventId=submit'
+        '&lt=${Uri.encodeComponent(lt)}'
+        '&execution=${Uri.encodeComponent(execution)}'
+        '&type=pwd&callback=logincallback&n=${ts + 1}&_=$ts';
+    final loginResp = await _requestWithRedirects(authDio, loginUrl);
+    final loginJson = _parseJsonp(loginResp.data ?? '');
+
+    if (loginJson['login'] == 'fails') return false;
+
+    final ticket = loginJson['ticket'] as String?;
+    if (ticket == null || ticket.isEmpty) return false;
+    debugPrint('SSO: got ticket=$ticket');
+
+    // 4. 用 ticket 走 SSO（与参考实现一致，其返回结果被忽略，仅用于触发会话）
+    await _requestWithRedirects(
+      authDio,
+      '${AppConstants.iplat}/ssoservice?'
+      'ssoservice=${Uri.encodeComponent(AppConstants.ilearntecService)}'
+      '&ticket=${Uri.encodeComponent(ticket)}',
+    );
+    // 5. 建立 ilearntec 平台的真实会话。
+    //    实测 /coursecenter/main/index 这条 CAS 链能走通并返回 200、下发有效 SESSION；
+    //    而 /studycenter/platform/main/index?ticket 校验会 500，故不采用它。
+    final homeResp = await _requestWithRedirects(
+      authDio,
+      '${AppConstants.ilearntec}/coursecenter/main/index',
+    );
+    debugPrint('SSO: homepage warmup status=${homeResp.statusCode}');
+
+    final cookies = await _cookieJar.loadForRequest(
+      Uri.parse(AppConstants.ilearntecService),
+    );
+    debugPrint('SSO: collected ${cookies.length} cookies for ilearntec: '
+        '${cookies.map((c) => c.name).join(',')}');
+
+    return true;
+  }
+
+  /// 手动跟随重定向，确保每一步响应的 Set-Cookie 都被 [CookieJar] 记录
+  /// （Dio 自动跟随重定向会丢弃中间跳转 Set-Cookie）。
+  Future<Response<String>> _requestWithRedirects(Dio dio, String url) async {
+    var current = url;
+    for (var i = 0; i < 10; i++) {
+      final resp = await dio.get<String>(current);
+      final status = resp.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        final location = resp.headers.value('location');
+        if (location == null || location.isEmpty) {
+          throw DioException.badResponse(
+            statusCode: status,
+            requestOptions: resp.requestOptions,
+            response: resp,
+          );
+        }
+        current = resp.requestOptions.uri.resolve(location).toString();
+        continue;
+      }
+      return resp;
+    }
+    throw StateError('Too many redirects for $url');
+  }
+
+  /// 从 HTML 中找到形如 `<input id/name="attrValue" ... value="...">` 的输入框并返回其 value。
+  String? _extractInputValue(String html, String attrName, String attrValue) {
+    final tagReg = RegExp(r'<input\b[^>]*>', caseSensitive: false);
+    final attrReg = RegExp(
+      '\\b$attrName\\s*=\\s*["\']${RegExp.escape(attrValue)}["\']',
+      caseSensitive: false,
+    );
+    final valueReg = RegExp(
+      '\\bvalue\\s*=\\s*["\']([^"\']*)["\']',
+      caseSensitive: false,
+    );
+    for (final match in tagReg.allMatches(html)) {
+      final tag = match.group(0);
+      if (tag == null) continue;
+      if (!attrReg.hasMatch(tag)) continue;
+      final valueMatch = valueReg.firstMatch(tag);
+      if (valueMatch != null) return valueMatch.group(1);
+    }
+    return null;
+  }
+
+  /// 解析形如 `callback({...})` 的 JSONP 响应文本。
+  Map<String, dynamic> _parseJsonp(String text) {
+    final start = text.indexOf('(');
+    final end = text.lastIndexOf(')');
+    if (start < 0 || end < 0 || end <= start) {
+      throw FormatException('Invalid JSONP response: $text');
+    }
+    final body = text.substring(start + 1, end);
+    final decoded = jsonDecode(body);
+    return decoded is Map<String, dynamic> ? decoded : {};
   }
 
   /// 获取课程列表
@@ -105,9 +259,8 @@ class IlearnApi {
   /// }
   /// ```
   Future<Map<String, dynamic>> classList(int termYear, int term) async {
-    await _ready;
     var res = await _dio.get<Map<String, dynamic>>(
-      AppConstants.httpsPrefix + AppConstants.mainDomain + '/studycenter/platform/classroom/myClassroom',
+      '${AppConstants.httpsPrefix}${AppConstants.mainDomain}/studycenter/platform/classroom/myClassroom',
       queryParameters: {'termYear': termYear, 'term': term},
     );
     return res.data!;
@@ -137,9 +290,9 @@ class IlearnApi {
   /// }
   /// ```
   Future<Map<String, dynamic>> termList() async {
-    await _ready;
-    var res = await _dio.get<Map<String, dynamic>>(
-      AppConstants.httpsPrefix + AppConstants.mainDomain + '/studycenter/platform/common/termList',
+    var res = await _dio.post<Map<String, dynamic>>(
+      '${AppConstants.httpsPrefix}${AppConstants.mainDomain}/studycenter/platform/common/termList',
+      data: '',
     );
     return res.data!;
   }
@@ -205,9 +358,8 @@ class IlearnApi {
     String teachClassId,
     String termId,
   ) async {
-    await _ready;
     var res = await _dio.get<Map<String, dynamic>>(
-      AppConstants.httpsPrefix + AppConstants.mainDomain + '/coursecenter/liveAndRecord/getLiveAndRecordInfoList',
+      '${AppConstants.httpsPrefix}${AppConstants.mainDomain}/coursecenter/liveAndRecord/getLiveAndRecordInfoList',
       queryParameters: {
         'memberId': '',
         'roomType': '0',
@@ -273,9 +425,8 @@ class IlearnApi {
   /// }
   /// ```
   Future<Map<String, dynamic>> videoClassInfo(String resourceId) async {
-    await _ready;
     var res = await _dio.get<Map<String, dynamic>>(
-      AppConstants.httpsPrefix + AppConstants.resourceDomain + '/resource-center/videoclass/videoClassInfo',
+      '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}/resource-center/videoclass/videoClassInfo',
       queryParameters: {'resourceId': resourceId},
     );
     return res.data!;
