@@ -173,6 +173,34 @@ class IlearnApi {
     throw StateError('Too many redirects for $url');
   }
 
+  /// 对需要跨域 CAS 认证的请求（如资源域）手动跟随重定向，确保每一跳都带 cookie。
+  /// 返回最终响应体文本（可能是 JSON 或 HTML）。
+  Future<String> _sessionGet(String url) async {
+    final dio = Dio(
+      BaseOptions(
+        responseType: ResponseType.plain,
+        followRedirects: false,
+        validateStatus: (_) => true,
+        headers: {
+          "Origin": "https://ilearntec.jlu.edu.cn",
+          "Referer": "https://ilearntec.jlu.edu.cn/studycenter-web/course",
+          "sec-ch-ua":
+              "\"Chromium\";v=\"148\", \"Microsoft Edge\";v=\"148\", \"Not/A)Brand\";v=\"99\"",
+          "Sec-Fetch-Dest": "empty",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Site": "same-origin",
+          "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0",
+          "Visit-Type": "web",
+        },
+      ),
+    );
+    dio.httpClientAdapter = _insecureAdapter();
+    dio.interceptors.add(CookieManager(_cookieJar));
+    final resp = await _requestWithRedirects(dio, url);
+    return resp.data ?? '';
+  }
+
   /// 从 HTML 中找到形如 `<input id/name="attrValue" ... value="...">` 的输入框并返回其 value。
   String? _extractInputValue(String html, String attrName, String attrValue) {
     final tagReg = RegExp(r'<input\b[^>]*>', caseSensitive: false);
@@ -425,14 +453,15 @@ class IlearnApi {
   /// ```
   Future<Map<String, dynamic>> videoClassInfo(String resourceId) async {
     // 先在资源域建立会话（与参考实现一致），否则直接请求 videoClassInfo 会返回“获取录播课信息失败”。
-    await _dio.get(
-      '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}/resource-center/zhwk/selectLanguageExists',
-      queryParameters: {'resourceId': resourceId},
+    // 资源域需要经 CAS 认证，故用 _sessionGet 手动跟随重定向，保证每跳携带 cookie。
+    final base = '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}';
+    await _sessionGet(
+      '$base/resource-center/zhwk/selectLanguageExists?resourceId=$resourceId',
     );
-    var res = await _dio.get<Map<String, dynamic>>(
-      '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}/resource-center/videoclass/videoClassInfo',
-      queryParameters: {'resourceId': resourceId},
+    final body = await _sessionGet(
+      '$base/resource-center/videoclass/videoClassInfo?resourceId=$resourceId',
     );
-    return res.data!;
+    final decoded = jsonDecode(body);
+    return decoded is Map<String, dynamic> ? decoded : {};
   }
 }
