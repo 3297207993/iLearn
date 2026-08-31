@@ -243,6 +243,7 @@ class _MainPageState extends State<MainPage> {
       context,
       MaterialPageRoute(
         builder: (_) => VideoListPage(
+          api: _api,
           teachClassId: teachClassId,
           termId: termId,
           courseName: courseName,

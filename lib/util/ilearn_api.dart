@@ -27,7 +27,6 @@ class IlearnApi {
     _dio = Dio(
       BaseOptions(
         headers: {
-          "Host": "ilearntec.jlu.edu.cn",
           "Origin": "https://ilearntec.jlu.edu.cn",
           "Referer": "https://ilearntec.jlu.edu.cn/studycenter-web/course",
           "sec-ch-ua":
@@ -425,6 +424,11 @@ class IlearnApi {
   /// }
   /// ```
   Future<Map<String, dynamic>> videoClassInfo(String resourceId) async {
+    // 先在资源域建立会话（与参考实现一致），否则直接请求 videoClassInfo 会返回“获取录播课信息失败”。
+    await _dio.get(
+      '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}/resource-center/zhwk/selectLanguageExists',
+      queryParameters: {'resourceId': resourceId},
+    );
     var res = await _dio.get<Map<String, dynamic>>(
       '${AppConstants.httpsPrefix}${AppConstants.resourceDomain}/resource-center/videoclass/videoClassInfo',
       queryParameters: {'resourceId': resourceId},

@@ -3,12 +3,14 @@ import 'package:ilearn/util/ilearn_api.dart';
 import 'video_player_page.dart';
 
 class VideoListPage extends StatefulWidget {
+  final IlearnApi api;
   final String teachClassId;
   final String termId;
   final String courseName;
 
   const VideoListPage({
     super.key,
+    required this.api,
     required this.teachClassId,
     required this.termId,
     required this.courseName,
@@ -19,7 +21,6 @@ class VideoListPage extends StatefulWidget {
 }
 
 class _VideoListPageState extends State<VideoListPage> {
-  final IlearnApi _api = IlearnApi();
   List<Map<String, dynamic>> _videos = [];
   bool _isLoading = true;
   String? _error;
@@ -36,7 +37,7 @@ class _VideoListPageState extends State<VideoListPage> {
       _error = null;
     });
     try {
-      final result = await _api.liveAndRecordList(
+      final result = await widget.api.liveAndRecordList(
         widget.teachClassId,
         widget.termId,
       );
@@ -266,6 +267,7 @@ class _VideoListPageState extends State<VideoListPage> {
       context,
       MaterialPageRoute(
         builder: (_) => VideoPlayerPage(
+          api: widget.api,
           resourceId: resourceId,
           resourceName: liveRecordName,
         ),

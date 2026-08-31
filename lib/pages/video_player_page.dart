@@ -6,11 +6,13 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:ilearn/util/ilearn_api.dart';
 
 class VideoPlayerPage extends StatefulWidget {
+  final IlearnApi api;
   final String resourceId;
   final String resourceName;
 
   const VideoPlayerPage({
     super.key,
+    required this.api,
     required this.resourceId,
     this.resourceName = '',
   });
@@ -20,7 +22,6 @@ class VideoPlayerPage extends StatefulWidget {
 }
 
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
-  final IlearnApi _api = IlearnApi();
 
   late final Player _player1;
   late final Player _player2;
@@ -71,7 +72,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _loadVideoInfo() async {
     try {
-      final result = await _api.videoClassInfo(widget.resourceId);
+      final result = await widget.api.videoClassInfo(widget.resourceId);
       final data = result['data'] as Map<String, dynamic>;
       final videoList =
           (data['videoList'] as List).cast<Map<String, dynamic>>();
