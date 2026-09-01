@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:ilearn/util/ilearn_api.dart';
+import 'package:ilearn/widgets/double_video_player.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final String resourceId;
@@ -20,29 +19,18 @@ class VideoPlayerPage extends StatefulWidget {
 }
 
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
-
-  late final Player _player1;
-  late final Player _player2;
-  late final VideoController _controller1;
-  late final VideoController _controller2;
-
   List<Map<String, dynamic>> _videoList = [];
   bool _isLoading = true;
   String? _error;
 
-  bool _isPlaying = false;
-  bool _isSeeking = false;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
+  DoubleVideoController? _controller;
 
-  bool _showControls = true;
   int _viewMode = 0;
+  bool _showControls = true;
+  bool _isSeeking = false;
+  Duration _dragPosition = Duration.zero;
 
-  Timer? _syncTimer;
   Timer? _controlsTimer;
-  StreamSubscription? _playingSub;
-  StreamSubscription? _durationSub;
-  StreamSubscription? _positionSub;
 
   @override
   void initState() {
@@ -53,19 +41,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-    _player1 = Player();
-    _player2 = Player();
-    _controller1 = VideoController(_player1);
-    _controller2 = VideoController(_player2);
-
-    _player2.setVolume(0);
-
     _loadVideoInfo();
-  }
-
-  String _cleanUrl(String? url) {
-    if (url == null) return '';
-    return url.trim().replaceAll('`', '');
   }
 
   Future<void> _loadVideoInfo() async {
@@ -75,91 +51,49 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       final videoList =
           (data['videoList'] as List).cast<Map<String, dynamic>>();
 
+      if (!mounted) return;
       setState(() {
         _videoList = videoList;
         _isLoading = false;
       });
 
-      if (videoList.isNotEmpty) {
-        await _player1.open(Media(_cleanUrl(videoList[0]['videoPath'])),
-            play: false);
-      }
-      if (videoList.length > 1) {
-        await _player2.open(Media(_cleanUrl(videoList[1]['videoPath'])),
-            play: false);
-      }
-
-      _setupListeners();
-      _startSyncTimer();
-      _resetControlsTimer();
+      _initController();
     } catch (e) {
-      setState(() {
-        _error = '加载视频信息失败';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = '加载视频信息失败';
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  void _setupListeners() {
-    _playingSub = _player1.stream.playing.listen((playing) {
-      if (mounted && !_isSeeking) {
-        setState(() => _isPlaying = playing);
-        if (playing) _resetControlsTimer();
-      }
-    });
-    _durationSub = _player1.stream.duration.listen((duration) {
-      if (mounted) setState(() => _duration = duration);
-    });
-    _positionSub = _player1.stream.position.listen((position) {
-      if (mounted && !_isSeeking) setState(() => _position = position);
-    });
+  void _initController() {
+    final controller =
+        DoubleVideoController(videoList: _videoList);
+    controller.state.addListener(_onStateChanged);
+    _controller = controller;
+    controller.initialize();
+    _resetControlsTimer();
   }
 
-  void _startSyncTimer() {
-    _syncTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
-      if (!_isPlaying) return;
-      final pos1 = _player1.state.position;
-      final pos2 = _player2.state.position;
-      if ((pos1 - pos2).abs() > const Duration(milliseconds: 500)) {
-        _player2.seek(pos1);
-      }
-    });
+  void _onStateChanged() {
+    if (mounted) setState(() {});
   }
 
   void _resetControlsTimer() {
     _controlsTimer?.cancel();
-    _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _isPlaying) {
-        setState(() => _showControls = false);
-      }
-    });
+    final isPlaying = _controller?.state.value.isPlaying ?? false;
+    if (isPlaying) {
+      _controlsTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showControls = false);
+      });
+    }
   }
 
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
     if (_showControls) _resetControlsTimer();
-  }
-
-  void _togglePlayPause() {
-    if (_isPlaying) {
-      _player1.pause();
-      _player2.pause();
-    } else {
-      _player1.play();
-      _player2.play();
-    }
-  }
-
-  void _seekTo(Duration position) {
-    _player1.seek(position);
-    _player2.seek(position);
-    setState(() => _position = position);
-  }
-
-  void _seekRelative(Duration offset) {
-    final newMs = (_position.inMilliseconds + offset.inMilliseconds)
-        .clamp(0, _duration.inMilliseconds);
-    _seekTo(Duration(milliseconds: newMs));
   }
 
   String _formatDuration(Duration d) {
@@ -177,13 +111,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   @override
   void dispose() {
-    _syncTimer?.cancel();
     _controlsTimer?.cancel();
-    _playingSub?.cancel();
-    _durationSub?.cancel();
-    _positionSub?.cancel();
-    _player1.dispose();
-    _player2.dispose();
+    _controller?.state.removeListener(_onStateChanged);
+    _controller?.dispose();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.landscapeLeft,
@@ -193,60 +123,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     super.dispose();
   }
 
+  List<String> get _labels => _videoList
+      .map((e) => (e['videoName'] as String?) ?? '')
+      .toList();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          GestureDetector(
-            onTap: _toggleControls,
-            behavior: HitTestBehavior.opaque,
-            child: _buildVideoArea(),
-          ),
-          if (!_isPlaying && !_isLoading && _error == null)
-            Center(
-              child: IconButton(
-                icon: const Icon(Icons.play_circle_fill,
-                    color: Colors.white70, size: 64),
-                onPressed: _togglePlayPause,
-              ),
-            ),
-          if (_showControls) ...[
-            _buildTopBar(),
-            _buildBottomControls(),
-          ],
-        ],
-      ),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildLabeledVideo(VideoController controller, String label) {
-    return Stack(
-      children: [
-        Positioned.fill(child: Video(controller: controller)),
-        if (_showControls)
-          Positioned(
-            top: 4,
-            left: 4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildVideoArea() {
+  Widget _buildBody() {
     if (_isLoading) {
       return const Center(
           child: CircularProgressIndicator(color: Colors.white));
@@ -264,52 +153,51 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         ),
       );
     }
-
     if (_videoList.isEmpty) {
       return const Center(
           child: Text('暂无视频', style: TextStyle(color: Colors.white)));
     }
+    if (_controller == null) {
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.white));
+    }
 
-    if (_videoList.length == 1) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: _buildLabeledVideo(
-              _controller1, _videoList[0]['videoName'] ?? ''),
+    final controller = _controller!;
+    final state = controller.state.value;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          onTap: _toggleControls,
+          behavior: HitTestBehavior.opaque,
+          child: DoubleVideoPlayer(
+            controller: controller,
+            viewMode: _viewMode,
+            labels: _labels,
+          ),
         ),
-      );
-    }
-
-    final label1 = _videoList[0]['videoName'] ?? '视频1';
-    final label2 = _videoList[1]['videoName'] ?? '视频2';
-
-    switch (_viewMode) {
-      case 1:
-        return Center(
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: _buildLabeledVideo(_controller1, label1),
+        if (!state.isPlaying && !state.buffering)
+          Center(
+            child: IconButton(
+              icon: const Icon(Icons.play_circle_fill,
+                  color: Colors.white70, size: 64),
+              onPressed: controller.togglePlayPause,
+            ),
           ),
-        );
-      case 2:
-        return Center(
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: _buildLabeledVideo(_controller2, label2),
+        if (state.buffering)
+          const Center(
+            child: CircularProgressIndicator(color: Colors.white),
           ),
-        );
-      default:
-        return Row(
-          children: [
-            Expanded(child: _buildLabeledVideo(_controller1, label1)),
-            Container(width: 1, color: Colors.white24),
-            Expanded(child: _buildLabeledVideo(_controller2, label2)),
-          ],
-        );
-    }
+        if (_showControls) ...[
+          _buildTopBar(controller),
+          _buildBottomControls(controller, state),
+        ],
+      ],
+    );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar(DoubleVideoController controller) {
     return Positioned(
       top: 0,
       left: 0,
@@ -374,7 +262,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     );
   }
 
-  Widget _buildBottomControls() {
+  Widget _buildBottomControls(
+      DoubleVideoController controller, DoubleVideoState state) {
+    final position = _isSeeking ? _dragPosition : state.position;
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -399,7 +290,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             Row(
               children: [
                 Text(
-                  _formatDuration(_position),
+                  _formatDuration(position),
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
                 Expanded(
@@ -412,33 +303,36 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           const RoundSliderOverlayShape(overlayRadius: 12),
                     ),
                     child: Slider(
-                      value: _duration.inMilliseconds > 0
-                          ? (_position.inMilliseconds /
-                                  _duration.inMilliseconds)
+                      value: state.duration.inMilliseconds > 0
+                          ? (position.inMilliseconds /
+                                  state.duration.inMilliseconds)
                               .clamp(0.0, 1.0)
                           : 0,
                       onChanged: (value) {
                         setState(() {
                           _isSeeking = true;
-                          _position = Duration(
+                          _dragPosition = Duration(
                             milliseconds:
-                                (_duration.inMilliseconds * value).round(),
+                                (state.duration.inMilliseconds * value).round(),
                           );
                         });
                       },
                       onChangeEnd: (value) {
-                        _seekTo(Duration(
+                        controller.seekTo(Duration(
                           milliseconds:
-                              (_duration.inMilliseconds * value).round(),
+                              (state.duration.inMilliseconds * value).round(),
                         ));
-                        _isSeeking = false;
+                        setState(() {
+                          _isSeeking = false;
+                          _dragPosition = Duration.zero;
+                        });
                         _resetControlsTimer();
                       },
                     ),
                   ),
                 ),
                 Text(
-                  _formatDuration(_duration),
+                  _formatDuration(state.duration),
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -450,25 +344,25 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                   icon: const Icon(Icons.replay_10,
                       color: Colors.white, size: 28),
                   onPressed: () =>
-                      _seekRelative(const Duration(seconds: -10)),
+                      controller.seekRelative(const Duration(seconds: -10)),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: Icon(
-                    _isPlaying
+                    state.isPlaying
                         ? Icons.pause_circle_filled
                         : Icons.play_circle_filled,
                     color: Colors.white,
                     size: 44,
                   ),
-                  onPressed: _togglePlayPause,
+                  onPressed: controller.togglePlayPause,
                 ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.forward_10,
                       color: Colors.white, size: 28),
                   onPressed: () =>
-                      _seekRelative(const Duration(seconds: 10)),
+                      controller.seekRelative(const Duration(seconds: 10)),
                 ),
               ],
             ),
