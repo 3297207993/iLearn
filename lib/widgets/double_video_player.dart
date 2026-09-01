@@ -211,7 +211,9 @@ class DoubleVideoPlayer extends StatelessWidget {
   Widget _render(VideoController videoController, String label) {
     return Stack(
       children: [
-        Positioned.fill(child: Video(controller: videoController)),
+        Positioned.fill(
+          child: Video(controller: videoController, controls: NoVideoControls),
+        ),
         if (label.isNotEmpty)
           Positioned(
             top: 4,
