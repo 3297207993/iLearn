@@ -9,6 +9,20 @@ import 'package:ilearn/constants/app_constants.dart';
 import 'package:ilearn/util/app_log.dart';
 
 class IlearnApi {
+  static IlearnApi? _instance;
+
+  /// 当前全局唯一的已登录实例。登录成功后再访问，否则抛错。
+  static IlearnApi get instance {
+    final inst = _instance;
+    if (inst == null) {
+      throw StateError('IlearnApi 尚未初始化，请先完成登录');
+    }
+    return inst;
+  }
+
+  /// 登录成功后由登录页赋值；重新登录时换新实例（重置会话 cookie）。
+  static set instance(IlearnApi value) => _instance = value;
+
   late final Dio _dio;
   final CookieJar _cookieJar = CookieJar();
 

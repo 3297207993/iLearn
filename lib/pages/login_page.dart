@@ -17,7 +17,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  IlearnApi? _api;
   bool _isLoggingIn = false;
   bool _isLoggedIn = false;
   String? _error;
@@ -42,10 +41,10 @@ class _LoginPageState extends State<LoginPage> {
         });
         return;
       }
+      IlearnApi.instance = api;
       setState(() {
         _isLoggedIn = true;
         _isLoggingIn = false;
-        _api = api;
       });
     } catch (e, s) {
       log.e('SSO: completeSsoLogin error: $e\n$s');
@@ -67,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoggedIn) {
-      return MainPage(api: _api!);
+      return MainPage();
     }
     return Stack(
       children: [
