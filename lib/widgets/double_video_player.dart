@@ -45,6 +45,7 @@ class DoubleVideoController {
     controller1 = VideoController(_player1);
     controller2 = VideoController(_player2);
     _player2.setVolume(0);
+    state = ValueNotifier(_readState());
   }
 
   final List<Map<String, dynamic>> videoList;
@@ -53,12 +54,8 @@ class DoubleVideoController {
   late final VideoController controller1;
   late final VideoController controller2;
 
-  final ValueNotifier<DoubleVideoState> state =
-      ValueNotifier(const DoubleVideoState());
+  late final ValueNotifier<DoubleVideoState> state;
 
-  bool _buffering1 = false;
-  bool _buffering2 = false;
-  bool _bufferingActive = false;
   bool _wantPlay = false;
 
   Timer? _syncTimer;
@@ -85,46 +82,40 @@ class DoubleVideoController {
   }
 
   void _setupListeners() {
-    _subs.add(_player1.stream.playing.listen((playing) {
-      if (!state.value.isSeeking) {
-        state.value = state.value.copyWith(isPlaying: playing);
-      }
-    }));
-    _subs.add(_player1.stream.duration
-        .listen((d) => state.value = state.value.copyWith(duration: d)));
-    _subs.add(_player1.stream.position
-        .listen((p) => state.value = state.value.copyWith(position: p)));
-    _subs.add(_player1.stream.buffering
-        .listen((b) => _handleBuffering(1, b)));
-    _subs.add(_player2.stream.buffering
-        .listen((b) => _handleBuffering(2, b)));
+    _subs.add(_player1.stream.playing.listen((_) => _publishState()));
+    _subs.add(_player1.stream.duration.listen((_) => _publishState()));
+    _subs.add(_player1.stream.position.listen((_) => _publishState()));
+    _subs.add(_player1.stream.buffering.listen((_) => _handleBuffering()));
+    _subs.add(_player2.stream.buffering.listen((_) => _handleBuffering()));
   }
 
-  void _handleBuffering(int which, bool buffering) {
-    if (which == 1) {
-      _buffering1 = buffering;
-    } else {
-      _buffering2 = buffering;
-    }
-    _syncBufferingState();
+  DoubleVideoState _readState() {
+    final p1 = _player1.state;
+    return DoubleVideoState(
+      isPlaying: p1.playing,
+      position: p1.position,
+      duration: p1.duration,
+      buffering: p1.buffering || _player2.state.buffering,
+    );
   }
 
-  void _syncBufferingState() {
-    final anyBuffer = _buffering1 || _buffering2;
-    if (anyBuffer == _bufferingActive) return;
-    _bufferingActive = anyBuffer;
-    if (anyBuffer) {
-      // 任一视频缓冲：两个都暂停，等待就绪
-      _player1.pause();
-      _player2.pause();
-      state.value = state.value.copyWith(isPlaying: false, buffering: true);
+  void _publishState() {
+    state.value = _readState();
+  }
+
+  void _handleBuffering() {
+    // 状态来源直接用下游 player.state，避免手动累积布尔标志。
+    final b1 = _player1.state.buffering;
+    final b2 = _player2.state.buffering;
+    _publishState();
+    if (b1 || b2) {
+      // 正在缓冲的那路 mpv 已通过 paused-for-cache 自行暂停，不要去 pause 它，
+      // 只暂停未缓冲的另一路，让两者同步等待；之后缓冲结束一起恢复。
+      if (!b1) _player1.pause();
+      if (!b2) _player2.pause();
     } else if (_wantPlay) {
-      // 两个都就绪且需要播放：恢复同步播放
       _player1.play();
       _player2.play();
-      state.value = state.value.copyWith(buffering: false);
-    } else {
-      state.value = state.value.copyWith(buffering: false);
     }
   }
 
