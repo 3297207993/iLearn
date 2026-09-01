@@ -18,7 +18,8 @@ class VideoListPage extends StatefulWidget {
   State<VideoListPage> createState() => _VideoListPageState();
 }
 
-class _VideoListPageState extends State<VideoListPage> {
+class _VideoListPageState extends State<VideoListPage>
+    with WidgetsBindingObserver {
   IlearnApi get _api => IlearnApi.instance;
   List<Map<String, dynamic>> _videos = [];
   bool _isLoading = true;
@@ -27,7 +28,21 @@ class _VideoListPageState extends State<VideoListPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadVideos();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // 从横屏视频页返回、或应用方向/尺寸变化时，强制重建一次，
+  // 避免返回后仍按旧的(横屏)尺寸布局，出现“只显示一半”。
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadVideos() async {
