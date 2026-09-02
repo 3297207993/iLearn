@@ -38,12 +38,17 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
+      # 版本号以触发的 tag 为准
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-name="${GITHUB_REF_NAME#v}"
+
+      # 用 tag 名重命名 APK
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk "iLearn-${GITHUB_REF_NAME}.apk"
 
       # 以 tag 名称创建 GitHub Release 并上传 APK
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: iLearn-${{ github.ref_name }}.apk
           generate_release_notes: true
