@@ -6,6 +6,11 @@
 
 一个使用 Flutter 开发的吉林大学 iLearn 在线教学平台的第三方移动端客户端，支持 Android / iOS。
 
+## 软件下载
+
+👉 **[点击前往 GitHub Releases 页面下载最新版 APK](../../releases/latest)**   
+   也可以进入[github的releases页面](../../releases)查看全部历史版本。
+
 ## 基本功能
 
 - **统一身份认证登录**：使用校园网统一身份认证账号登录，即可同步登录 iLearn 平台，无需额外操作。
