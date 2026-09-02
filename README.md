@@ -10,6 +10,7 @@
 
 👉 **[点击前往 GitHub Releases 页面下载最新版 APK](../../releases/latest)**   
    也可以进入[github的releases页面](../../releases)查看全部历史版本。
+> 以上链接只在github上点击有效，在自己的本地编辑器中点击无效
 
 ## 基本功能
 
